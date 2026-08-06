@@ -74,13 +74,32 @@ Each call opens a new browser tab pointed at the live site with the right file/f
 ## Project structure
 
 ```
-index.html          entry point (served as-is by GitHub Pages)
-src/                 app JS/CSS (viewer.js, settings.js, viewer.css)
+index.html            entry point (served as-is by GitHub Pages)
+src/viewer.css        all styling
+src/settings.js       settings state, persistence (localStorage), and the settings-panel form
+src/app.js            bootstrap: wires up DOM events, mdopen URL params, session restore
+src/state.js          shared app state + constants
+src/idb.js            IndexedDB helper (remembers the last opened folder/file)
+src/file-tree.js      builds and renders the sidebar file tree (File System Access API)
+src/file-ops.js       opening files/folders, auto-refresh (both FS Access API and mdopen/server modes)
+src/server-client.js  fetch helper for the mdopen local server
+src/markdown-render.js   marked.js renderer setup + sanitization
+src/frontmatter.js    YAML frontmatter parsing → metadata card
+src/wikilinks.js      [[wiki-link]] parsing and navigation
+src/text-utils.js     heading slugs, smart typography, HTML escaping
+src/outline.js        auto-generated table of contents
+src/mermaid-diagrams.js  Mermaid rendering + diagram toolbar (copy/export)
+src/lightbox.js        zoom/pan modal for diagrams
+src/code-copy.js      copy-to-clipboard button for code blocks
+src/clipboard.js      clipboard helper with an execCommand fallback
+src/search.js         full-text search across the open folder
 lib/                 vendored dependencies (marked, DOMPurify, highlight.js, mermaid) — no CDN, no build step
 icons/               favicon
 cli/mdopen           the `mdopen` shell command
 cli/server.js        localhost-only helper server used by `mdopen`
 .github/workflows/   GitHub Actions workflow that deploys `main` to GitHub Pages on every push
 ```
+
+Every file here is a plain `<script>` tag in `index.html`, loaded in dependency order — no bundler, no build step.
 
 There's no build step — it's plain HTML/CSS/JS served directly, and deploys are triggered automatically by pushing to `main`.

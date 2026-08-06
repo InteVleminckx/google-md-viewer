@@ -298,6 +298,66 @@ function displayMarkdown(rawText, fileName) {
   document.getElementById("current-file-name").textContent = fileName;
   buildOutline();
   renderMermaidDiagrams();
+  attachCodeCopyButtons();
+}
+
+/* ---------- clipboard helper (async Clipboard API can hang in some contexts; always settle) ---------- */
+function copyTextViaExecCommand(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(textarea);
+  return ok;
+}
+
+function copyTextToClipboard(text) {
+  const timeout = (ms) => new Promise((resolve) => setTimeout(() => resolve("timeout"), ms));
+  return Promise.race([
+    navigator.clipboard.writeText(text).then(() => "ok"),
+    timeout(1500),
+  ])
+    .catch(() => "error")
+    .then((outcome) => (outcome === "ok" ? true : copyTextViaExecCommand(text)));
+}
+
+/* ---------- code block copy buttons ---------- */
+function attachCodeCopyButtons() {
+  const blocks = document.querySelectorAll("#content pre:not(.mermaid)");
+  blocks.forEach((pre) => {
+    if (pre.parentElement.classList.contains("code-block-wrapper")) return;
+    const code = pre.querySelector("code");
+    if (!code) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "code-block-wrapper";
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(pre);
+
+    const btn = document.createElement("button");
+    btn.className = "code-copy-btn";
+    btn.type = "button";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const ok = await copyTextToClipboard(code.textContent);
+      btn.textContent = ok ? "Copied!" : "Failed";
+      btn.classList.toggle("copied", ok);
+      setTimeout(() => {
+        btn.textContent = "Copy";
+        btn.classList.remove("copied");
+      }, 1500);
+    });
+    wrapper.appendChild(btn);
+  });
 }
 
 /* ---------- mermaid ---------- */
@@ -347,12 +407,8 @@ function attachDiagramToolbar(preEl) {
 }
 
 async function copySvgToClipboard(svg) {
-  try {
-    const svgStr = new XMLSerializer().serializeToString(svg);
-    await navigator.clipboard.writeText(svgStr);
-  } catch (err) {
-    console.error("Copy SVG failed", err);
-  }
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  await copyTextToClipboard(svgStr);
 }
 
 function exportSvgAsPng(svg) {

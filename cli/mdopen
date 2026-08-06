@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Opens a markdown file or folder in the MD Viewer web app.
+# Usage: mdopen <file-or-folder>
+set -euo pipefail
+
+APP_URL="https://intevleminckx.github.io/google-md-viewer/"
+STATE_DIR="$HOME/.mdviewer"
+STATE_FILE="$STATE_DIR/server.json"
+
+# Resolve the real script location, following symlinks (mdopen is symlinked into ~/.local/bin)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+SERVER_JS="$SCRIPT_DIR/server.js"
+
+if [ $# -lt 1 ]; then
+  echo "Usage: mdopen <file-or-folder>" >&2
+  exit 1
+fi
+
+if [ -d "$1" ]; then
+  TARGET="$(cd "$1" && pwd)"
+  MODE="dir"
+elif [ -f "$1" ]; then
+  TARGET="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+  MODE="file"
+else
+  echo "mdopen: not a file or directory: $1" >&2
+  exit 1
+fi
+
+mkdir -p "$STATE_DIR"
+
+server_alive() {
+  [ -f "$STATE_FILE" ] || return 1
+  local pid
+  pid="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$STATE_FILE')).pid)}catch(e){}")"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+if ! server_alive; then
+  rm -f "$STATE_FILE"
+  nohup node "$SERVER_JS" >/tmp/mdviewer-server.log 2>&1 &
+  disown
+  for _ in $(seq 1 30); do
+    [ -f "$STATE_FILE" ] && node -e "JSON.parse(require('fs').readFileSync('$STATE_FILE'))" >/dev/null 2>&1 && break
+    sleep 0.1
+  done
+  if [ ! -f "$STATE_FILE" ]; then
+    echo "mdopen: helper server failed to start. Log output:" >&2
+    cat /tmp/mdviewer-server.log >&2
+    exit 1
+  fi
+fi
+
+PORT="$(node -e "console.log(JSON.parse(require('fs').readFileSync('$STATE_FILE')).port)")"
+TOKEN="$(node -e "console.log(JSON.parse(require('fs').readFileSync('$STATE_FILE')).token)")"
+
+ENC_PATH="$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$TARGET")"
+
+URL="${APP_URL}?mode=${MODE}&path=${ENC_PATH}&port=${PORT}&token=${TOKEN}"
+
+open -a "Google Chrome" "$URL"

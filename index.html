@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MD Viewer</title>
+<link rel="icon" href="icons/icon128.png" />
+<link rel="stylesheet" href="lib/hljs-github.min.css" id="hljs-theme-light" />
+<link rel="stylesheet" href="lib/hljs-github-dark.min.css" id="hljs-theme-dark" />
+<link rel="stylesheet" href="src/viewer.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="sidebar-top">
+        <button id="btn-open-folder" class="btn" title="Open Folder">📁 Folder</button>
+        <button id="btn-open-file" class="btn" title="Open File">📄 File</button>
+        <button id="btn-search" class="btn icon-btn" title="Search files">🔍</button>
+      </div>
+      <div id="search-box" class="hidden">
+        <input id="search-input" type="text" placeholder="Filter files…" />
+      </div>
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="files">Files</button>
+        <button class="tab-btn" data-tab="outline">Outline</button>
+        <button class="tab-btn" data-tab="search">Search</button>
+      </div>
+      <div id="tab-files" class="tab-panel active">
+        <div id="file-tree"><p class="hint">Open a folder or file to get started.</p></div>
+      </div>
+      <div id="tab-outline" class="tab-panel">
+        <div id="outline-tree"><p class="hint">No document loaded.</p></div>
+      </div>
+      <div id="tab-search" class="tab-panel">
+        <div class="search-panel-box">
+          <input id="content-search-input" type="text" placeholder="Search file contents…" />
+        </div>
+        <div id="search-results"><p class="hint">Type to search across all open markdown files.</p></div>
+      </div>
+    </aside>
+
+    <div id="main">
+      <header id="toolbar">
+        <button id="btn-toggle-sidebar" class="btn icon-btn" title="Toggle sidebar">☰</button>
+        <span id="current-file-name">No file open</span>
+        <span id="refresh-indicator" class="hidden" title="Auto-refresh active">●</span>
+        <div class="spacer"></div>
+        <button id="btn-print" class="btn icon-btn" title="Print / Export PDF">🖨️</button>
+        <button id="btn-settings" class="btn icon-btn" title="Settings">⚙️</button>
+      </header>
+      <main id="content-wrapper">
+        <article id="content" class="md-body">
+          <div class="empty-state">
+            <h1>MD Viewer</h1>
+            <p>Open a folder to browse and render all Markdown files inside it, or open a single file.</p>
+          </div>
+        </article>
+      </main>
+    </div>
+
+    <aside id="settings-panel" class="hidden">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button id="btn-close-settings" class="btn icon-btn">✕</button>
+      </div>
+      <div class="settings-body">
+        <section>
+          <h3>Theme</h3>
+          <label class="row"><span>Color theme</span>
+            <select id="opt-theme">
+              <option value="auto">Auto (follow system)</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="sepia">Sepia</option>
+              <option value="nord">Nord</option>
+              <option value="solarized-light">Solarized Light</option>
+              <option value="solarized-dark">Solarized Dark</option>
+            </select>
+          </label>
+        </section>
+        <section>
+          <h3>Layout</h3>
+          <label class="row"><span>Center document content</span>
+            <input type="checkbox" id="opt-center" />
+          </label>
+          <label class="row"><span>Content width</span>
+            <select id="opt-width">
+              <option value="720">Narrow (720px)</option>
+              <option value="900">Medium (900px)</option>
+              <option value="1100">Wide (1100px)</option>
+              <option value="none">Full width</option>
+            </select>
+          </label>
+        </section>
+        <section>
+          <h3>Font</h3>
+          <label class="row"><span>Font family</span>
+            <select id="opt-font-family">
+              <option value="system">System UI</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Monospace</option>
+            </select>
+          </label>
+          <label class="row"><span>Font size</span>
+            <input type="range" id="opt-font-size" min="12" max="22" step="1" />
+            <span id="opt-font-size-val"></span>
+          </label>
+          <label class="row"><span>Line height</span>
+            <input type="range" id="opt-line-height" min="1.2" max="2.2" step="0.1" />
+            <span id="opt-line-height-val"></span>
+          </label>
+        </section>
+        <section>
+          <h3>Behavior</h3>
+          <label class="row"><span>Auto-refresh open file</span>
+            <input type="checkbox" id="opt-autorefresh" />
+          </label>
+          <label class="row"><span>Auto-refresh interval (s)</span>
+            <input type="number" id="opt-autorefresh-interval" min="1" max="30" />
+          </label>
+          <label class="row"><span>Auto-generate outline</span>
+            <input type="checkbox" id="opt-outline" />
+          </label>
+        </section>
+        <section>
+          <h3>Markdown plugins</h3>
+          <label class="row"><span>GitHub Flavored Markdown</span>
+            <input type="checkbox" id="opt-gfm" />
+          </label>
+          <label class="row"><span>Tables</span>
+            <input type="checkbox" id="opt-tables" />
+          </label>
+          <label class="row"><span>Task lists (checkboxes)</span>
+            <input type="checkbox" id="opt-tasklists" />
+          </label>
+          <label class="row"><span>Syntax highlighting</span>
+            <input type="checkbox" id="opt-highlight" />
+          </label>
+          <label class="row"><span>Mermaid diagrams</span>
+            <input type="checkbox" id="opt-mermaid" />
+          </label>
+          <label class="row"><span>Wiki-style [[links]]</span>
+            <input type="checkbox" id="opt-wikilinks" />
+          </label>
+          <label class="row"><span>Frontmatter card</span>
+            <input type="checkbox" id="opt-frontmatter" />
+          </label>
+          <label class="row"><span>Smart typography</span>
+            <input type="checkbox" id="opt-smartypants" />
+          </label>
+          <label class="row"><span>Line breaks as &lt;br&gt;</span>
+            <input type="checkbox" id="opt-breaks" />
+          </label>
+        </section>
+        <section>
+          <h3>Custom CSS</h3>
+          <textarea id="opt-custom-css" rows="10" placeholder="/* injected into the document view */"></textarea>
+        </section>
+        <section>
+          <button id="btn-reset-settings" class="btn danger">Reset to defaults</button>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div id="diagram-lightbox" class="hidden">
+    <div class="lightbox-toolbar">
+      <button id="lb-zoom-out" class="btn icon-btn" title="Zoom out">−</button>
+      <button id="lb-zoom-reset" class="btn icon-btn" title="Reset zoom">⟳</button>
+      <button id="lb-zoom-in" class="btn icon-btn" title="Zoom in">+</button>
+      <span class="spacer"></span>
+      <button id="lb-close" class="btn icon-btn" title="Close (Esc)">✕</button>
+    </div>
+    <div id="lightbox-canvas"></div>
+  </div>
+
+  <style id="custom-css-style"></style>
+
+  <script src="lib/marked.min.js"></script>
+  <script src="lib/purify.min.js"></script>
+  <script src="lib/highlight.min.js"></script>
+  <script src="lib/mermaid.min.js"></script>
+  <script src="src/settings.js"></script>
+  <script src="src/viewer.js"></script>
+</body>
+</html>

@@ -35,8 +35,21 @@ const IMAGE_TYPES = {
   ".ico": "image/x-icon",
 };
 
-const TOKEN = crypto.randomBytes(16).toString("hex");
-const PORT = 0; // let the OS pick a free port
+// Reuse the port and token of the previous run (if any), so viewer tabs that are already
+// open keep working after the server restarts. Otherwise use a random token and free port.
+function readPreviousState() {
+  try {
+    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+const PREVIOUS = readPreviousState();
+const TOKEN = /^[0-9a-f]{32}$/.test(PREVIOUS.token || "")
+  ? PREVIOUS.token
+  : crypto.randomBytes(16).toString("hex");
+const PREFERRED_PORT = Number.isInteger(PREVIOUS.port) ? PREVIOUS.port : 0; // 0 = OS picks
 
 function send(res, status, body, extraHeaders = {}) {
   res.writeHead(status, {
@@ -207,7 +220,8 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+function onListening() {
+  server.removeAllListeners("error");
   const actualPort = server.address().port;
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.writeFileSync(
@@ -215,7 +229,18 @@ server.listen(PORT, "127.0.0.1", () => {
     JSON.stringify({ port: actualPort, token: TOKEN, pid: process.pid }, null, 2)
   );
   process.title = "mdviewer-server";
-});
+}
+
+// Try the preferred port first; if something else took it, fall back to a free one.
+function start(port) {
+  server.once("error", (err) => {
+    if (err.code === "EADDRINUSE" && port !== 0) return start(0);
+    throw err;
+  });
+  server.listen(port, "127.0.0.1", onListening);
+}
+
+start(PREFERRED_PORT);
 
 process.on("SIGTERM", () => process.exit(0));
 process.on("SIGINT", () => process.exit(0));

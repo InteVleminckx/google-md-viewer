@@ -35,22 +35,38 @@ fi
 
 mkdir -p "$STATE_DIR"
 
+server_pid() {
+  node -e "try{console.log(JSON.parse(require('fs').readFileSync('$STATE_FILE')).pid)}catch(e){}"
+}
+
 server_alive() {
   [ -f "$STATE_FILE" ] || return 1
   local pid
-  pid="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$STATE_FILE')).pid)}catch(e){}")"
+  pid="$(server_pid)"
   [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
 }
 
+# The state file is written when the server starts, so a newer server.js means the
+# running server has outdated code. It is restarted on the same port and token
+# (server.js reuses them), so already-open viewer tabs keep working.
+if server_alive && [ "$SERVER_JS" -nt "$STATE_FILE" ]; then
+  OLD_PID="$(server_pid)"
+  kill "$OLD_PID" 2>/dev/null || true
+  for _ in $(seq 1 30); do
+    kill -0 "$OLD_PID" 2>/dev/null || break
+    sleep 0.1
+  done
+fi
+
 if ! server_alive; then
-  rm -f "$STATE_FILE"
+  # Keep the old state file: the new server reads its port and token from it.
   nohup node "$SERVER_JS" >/tmp/mdviewer-server.log 2>&1 &
   disown
   for _ in $(seq 1 30); do
-    [ -f "$STATE_FILE" ] && node -e "JSON.parse(require('fs').readFileSync('$STATE_FILE'))" >/dev/null 2>&1 && break
+    server_alive && break
     sleep 0.1
   done
-  if [ ! -f "$STATE_FILE" ]; then
+  if ! server_alive; then
     echo "mdopen: helper server failed to start. Log output:" >&2
     cat /tmp/mdviewer-server.log >&2
     exit 1

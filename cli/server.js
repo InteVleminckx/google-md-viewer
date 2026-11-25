@@ -22,6 +22,19 @@ const STATE_FILE = path.join(STATE_DIR, "server.json");
 const MD_EXT = /\.(md|markdown|mdx)$/i;
 const EXCLUDED_DIRS = new Set([".git", "node_modules", ".obsidian", ".venv", "__pycache__", "dist", "build", ".next"]);
 
+// Only these file types are served by /asset (used for images embedded in markdown).
+const IMAGE_TYPES = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+};
+
 const TOKEN = crypto.randomBytes(16).toString("hex");
 const PORT = 0; // let the OS pick a free port
 
@@ -86,6 +99,24 @@ function searchFiles(dirAbs, query, maxResults) {
     }
   }
   return results;
+}
+
+// Stream an image file. Non-image extensions are refused, so this can't be used to read
+// arbitrary files; the sandbox CSP keeps an SVG opened directly from running scripts.
+function sendAsset(res, fileAbs) {
+  const type = IMAGE_TYPES[path.extname(fileAbs).toLowerCase()];
+  if (!type) return send(res, 415, { error: "unsupported asset type" });
+  const stat = fs.statSync(fileAbs);
+  if (!stat.isFile()) return send(res, 400, { error: "not a file" });
+  res.writeHead(200, {
+    "Content-Type": type,
+    "Content-Length": stat.size,
+    "Access-Control-Allow-Origin": APP_ORIGIN,
+    "Cache-Control": "no-cache",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+  });
+  fs.createReadStream(fileAbs).pipe(res);
 }
 
 function walk(dirAbs, relBase, depth) {
@@ -158,6 +189,10 @@ const server = http.createServer((req, res) => {
       if (!q) return send(res, 200, { results: [] });
       const results = searchFiles(dirAbs, q, 50);
       return send(res, 200, { results });
+    }
+
+    if (parsed.pathname === "/asset") {
+      return sendAsset(res, path.resolve(String(query.path || "")));
     }
 
     if (parsed.pathname === "/mtime") {

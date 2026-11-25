@@ -83,10 +83,54 @@ function renderMarkdown(rawText, settings) {
   });
 }
 
+/* ---------- local images (mdopen / server mode) ---------- */
+// True for paths like "img/a.png", "../a.png" or "/Users/me/a.png";
+// false for "https://...", "data:...", "//host/..." and "#anchor".
+function isLocalImageSrc(src) {
+  return !!src && !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src);
+}
+
+// Resolve a relative path against a directory; an absolute path is returned normalised.
+function resolveLocalPath(baseDir, relPath) {
+  const parts = relPath.startsWith("/") ? [] : baseDir.split("/");
+  for (const seg of relPath.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") parts.pop();
+    else parts.push(seg);
+  }
+  return "/" + parts.filter(Boolean).join("/");
+}
+
+function safeDecodeURI(text) {
+  try {
+    return decodeURI(text);
+  } catch {
+    return text;
+  }
+}
+
+// Point local <img> sources at the helper server's /asset endpoint, relative to the open file.
+function rewriteLocalImages(root) {
+  if (State.mode !== "server" || !State.currentServerPath) return;
+  const baseDir = dirnameOf(State.currentServerPath);
+  root.querySelectorAll("img").forEach((img) => {
+    const src = img.getAttribute("src");
+    if (!isLocalImageSrc(src)) return;
+    const relPath = safeDecodeURI(src.split(/[?#]/)[0]);
+    const qs = new URLSearchParams({ path: resolveLocalPath(baseDir, relPath), token: State.serverToken });
+    img.setAttribute("src", `${State.serverBase}/asset?${qs}`);
+  });
+}
+
 function displayMarkdown(rawText, fileName) {
   const html = renderMarkdown(rawText, Settings.current);
   const content = document.getElementById("content");
-  content.innerHTML = html;
+  // Build in an inert <template> so images don't start loading from the wrong URL
+  // before their src is rewritten.
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  rewriteLocalImages(template.content);
+  content.replaceChildren(template.content);
   document.getElementById("current-file-name").textContent = fileName;
   buildOutline();
   renderMermaidDiagrams();

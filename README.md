@@ -19,6 +19,7 @@ No install required to use the site itself — it's a static page. The `mdopen` 
 - **Print / export to PDF** — a clean print stylesheet, just use your browser's print dialog
 - **Custom CSS, fonts, width, line-height** — all configurable from the settings panel and persisted locally
 - **`mdopen` CLI** — open files/folders straight from your terminal (see below)
+- **Local images** — `![plot](figures/plot.png)` (relative to the open file) or absolute paths render when opened via `mdopen`; the helper server serves image files only (png, jpg, gif, svg, webp, avif, bmp, ico)
 
 Nothing you open ever leaves your machine — folders/files are read either via the browser's native File System Access API (when using "Open Folder"/"Open File" in the page) or via a localhost-only helper server (when using `mdopen`). There's no backend, no accounts, no telemetry.
 
